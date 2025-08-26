@@ -18,20 +18,13 @@ if (!hasApiKey) {
 // Conditionally initialize the client only if the API key exists.
 const ai = hasApiKey ? new GoogleGenAI({apiKey: process.env.API_KEY}) : null;
 const artModelName = 'gemini-2.5-flash';
-const textModelName = 'gemini-2.5-flash'; // Corrected model name
+const textModelName = 'gemini-2.5-flash';
 /**
  * Art-direction toggle for ASCII art generation.
  * `true`: Slower, higher-quality results (allows the model to "think").
  * `false`: Faster, potentially lower-quality results (skips thinking).
  */
 const ENABLE_THINKING_FOR_ASCII_ART = false;
-
-/**
- * Art-direction toggle for blocky ASCII text generation.
- * `true`: Generates both creative art and blocky text for the topic name.
- * `false`: Generates only the creative ASCII art.
- */
-const ENABLE_ASCII_TEXT_GENERATION = false;
 
 export interface AsciiArtData {
   art: string;
@@ -47,8 +40,7 @@ export async function* streamDefinition(
   topic: string,
 ): AsyncGenerator<string, void, undefined> {
   if (!ai) {
-    yield `Error: ${API_KEY_MISSING_ERROR}`;
-    return;
+    throw new Error(API_KEY_MISSING_ERROR);
   }
 
   const prompt = `For the term "${topic}", provide a detailed, encyclopedia-style explanation. Identify and highlight the most important **key words** in your response by wrapping them in double asterisks, like **this**. Start with a concise, single-paragraph overview. After this overview, provide a list of key aspects as bullet points. Each bullet point should start with the '•' character, followed by a space. Do not use any other markdown, titles, or special formatting. The response should be plain text with only the specified formatting.`;
@@ -72,9 +64,7 @@ export async function* streamDefinition(
     console.error('Error streaming from Gemini:', error);
     const errorMessage =
       error instanceof Error ? error.message : JSON.stringify(error);
-    yield `Error: Could not generate content for "${topic}". ${errorMessage}`;
-    // Re-throwing allows the caller to handle the error state definitively.
-    throw new Error(errorMessage);
+    throw new Error(`Could not generate content for "${topic}". ${errorMessage}`);
   }
 }
 
@@ -152,8 +142,6 @@ export async function generateAsciiArt(topic: string): Promise<AsciiArtData> {
       });
 
       let jsonStr = response.text.trim();
-      
-      console.log(`Attempt ${attempt}/${maxRetries} - Raw API response:`, jsonStr);
       
       const parsedData = JSON.parse(jsonStr) as AsciiArtData;
       

@@ -7,17 +7,17 @@ import React, { useState } from 'react';
 interface SearchBarProps {
   onSearch: (query: string) => void;
   onRandom: () => void;
-  isLoading: boolean;
+  disabled: boolean;
 }
 
-const SearchBar: React.FC<SearchBarProps> = ({ onSearch, onRandom, isLoading }) => {
+const SearchBar: React.FC<SearchBarProps> = ({ onSearch, onRandom, disabled }) => {
   const [query, setQuery] = useState('');
   const [inputColor, setInputColor] = useState('#ffffff'); // Default placeholder color
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     // Prevent submitting if the input is considered invalid
-    if (query.trim() && !isLoading && inputColor !== '#ff4444') {
+    if (query.trim() && !disabled && inputColor !== '#ff4444') {
       onSearch(query.trim());
       setQuery(''); // Clear the input field after search
       setInputColor('#ffffff'); // Reset color to match placeholder
@@ -51,11 +51,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch, onRandom, isLoading }) 
           placeholder="Search"
           className="search-input"
           aria-label="Search for a topic"
-          disabled={isLoading}
+          disabled={disabled}
           style={{ color: inputColor }} // Apply dynamic color
         />
       </form>
-      <button onClick={onRandom} className="random-button" disabled={isLoading}>
+      <button onClick={onRandom} className="random-button" disabled={disabled}>
         Random
       </button>
     </div>
