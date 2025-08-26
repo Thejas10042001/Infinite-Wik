@@ -7,11 +7,12 @@ import {GoogleGenAI, Type} from '@google/genai';
 
 const hasApiKey = !!process.env.API_KEY;
 
+// Export a consistent error message for consumers to check against.
+export const API_KEY_MISSING_ERROR = 'API_KEY is not configured. Please set the API_KEY environment variable in your deployment settings.';
+
 // This check is for development-time feedback.
 if (!hasApiKey) {
-  console.error(
-    'API_KEY environment variable is not set. The application will not be able to connect to the Gemini API.',
-  );
+  console.error(API_KEY_MISSING_ERROR);
 }
 
 // Conditionally initialize the client only if the API key exists.
@@ -46,7 +47,7 @@ export async function* streamDefinition(
   topic: string,
 ): AsyncGenerator<string, void, undefined> {
   if (!ai) {
-    yield 'Error: API_KEY is not configured. Please check your environment variables to continue.';
+    yield `Error: ${API_KEY_MISSING_ERROR}`;
     return;
   }
 
@@ -83,7 +84,7 @@ export async function* streamDefinition(
  */
 export async function getRandomWord(): Promise<string> {
   if (!ai) {
-    throw new Error('API_KEY is not configured.');
+    throw new Error(API_KEY_MISSING_ERROR);
   }
 
   const prompt = `Generate a single, random, interesting English word or a two-word concept. It can be a noun, verb, adjective, or a proper noun. Respond with only the word or concept itself, with no extra text, punctuation, or formatting.`;
@@ -113,7 +114,7 @@ export async function getRandomWord(): Promise<string> {
  */
 export async function generateAsciiArt(topic: string): Promise<AsciiArtData> {
   if (!ai) {
-    throw new Error('API_KEY is not configured.');
+    throw new Error(API_KEY_MISSING_ERROR);
   }
   
   // Define the desired JSON output structure for more reliable responses.
