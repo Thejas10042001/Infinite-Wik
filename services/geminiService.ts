@@ -5,15 +5,17 @@
 
 import {GoogleGenAI, Type} from '@google/genai';
 
+const hasApiKey = !!process.env.API_KEY;
+
 // This check is for development-time feedback.
-if (!process.env.API_KEY) {
+if (!hasApiKey) {
   console.error(
     'API_KEY environment variable is not set. The application will not be able to connect to the Gemini API.',
   );
 }
 
-// The "!" asserts API_KEY is non-null after the check.
-const ai = new GoogleGenAI({apiKey: process.env.API_KEY!});
+// Conditionally initialize the client only if the API key exists.
+const ai = hasApiKey ? new GoogleGenAI({apiKey: process.env.API_KEY}) : null;
 const artModelName = 'gemini-2.5-flash';
 const textModelName = 'gemini-2.5-flash'; // Corrected model name
 /**
@@ -43,7 +45,7 @@ export interface AsciiArtData {
 export async function* streamDefinition(
   topic: string,
 ): AsyncGenerator<string, void, undefined> {
-  if (!process.env.API_KEY) {
+  if (!ai) {
     yield 'Error: API_KEY is not configured. Please check your environment variables to continue.';
     return;
   }
@@ -80,7 +82,7 @@ export async function* streamDefinition(
  * @returns A promise that resolves to a single random word.
  */
 export async function getRandomWord(): Promise<string> {
-  if (!process.env.API_KEY) {
+  if (!ai) {
     throw new Error('API_KEY is not configured.');
   }
 
@@ -110,7 +112,7 @@ export async function getRandomWord(): Promise<string> {
  * @returns A promise that resolves to an object with art and optional text.
  */
 export async function generateAsciiArt(topic: string): Promise<AsciiArtData> {
-  if (!process.env.API_KEY) {
+  if (!ai) {
     throw new Error('API_KEY is not configured.');
   }
   
