@@ -8,6 +8,7 @@ interface ContentDisplayProps {
   content: string;
   isLoading: boolean;
   onWordClick: (word: string) => void;
+  disabled?: boolean;
 }
 
 /**
@@ -18,6 +19,7 @@ const renderClickableText = (
   text: string,
   onWordClick: (word: string) => void,
   baseKey: string,
+  disabled?: boolean,
 ) => {
   // Split by the markdown-like syntax for keywords, keeping the delimiters
   const parts = text.split(/(\*\*.*?\*\*)/g).filter(Boolean);
@@ -37,6 +39,7 @@ const renderClickableText = (
           className="interactive-word"
           style={{ color: '#6F4E37', fontWeight: 'bold' }} // Coffee color and bold
           aria-label={`Learn more about ${cleanWord}`}
+          disabled={disabled}
         >
           {keyword}
         </button>
@@ -55,6 +58,7 @@ const renderClickableText = (
                 onClick={() => onWordClick(cleanWord)}
                 className="interactive-word"
                 aria-label={`Learn more about ${cleanWord}`}
+                disabled={disabled}
               >
                 {word}
               </button>
@@ -74,7 +78,8 @@ const renderClickableText = (
 const InteractiveContent: React.FC<{
   content: string;
   onWordClick: (word: string) => void;
-}> = ({ content, onWordClick }) => {
+  disabled?: boolean;
+}> = ({ content, onWordClick, disabled }) => {
   // Split content into paragraphs/lines
   const paragraphs = content.split('\n').filter(p => p.trim() !== '');
 
@@ -91,7 +96,7 @@ const InteractiveContent: React.FC<{
             <div key={key} style={{ display: 'flex', alignItems: 'flex-start', margin: '0.5em 0 0.5em 1em', textAlign: 'justify' }}>
               <span style={{ marginRight: '0.5em', lineHeight: '1.6' }}>•</span>
               <div style={{ flex: 1 }}>
-                {renderClickableText(listItemContent, onWordClick, key)}
+                {renderClickableText(listItemContent, onWordClick, key, disabled)}
               </div>
             </div>
           );
@@ -99,7 +104,7 @@ const InteractiveContent: React.FC<{
           // Render a standard paragraph
           return (
             <p key={key} style={{ margin: '0 0 1em 0', textAlign: 'justify' }}>
-              {renderClickableText(para, onWordClick, key)}
+              {renderClickableText(para, onWordClick, key, disabled)}
             </p>
           );
         }
@@ -132,13 +137,13 @@ const StreamingContent: React.FC<{ content: string }> = ({ content }) => {
 };
 
 
-const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, isLoading, onWordClick }) => {
+const ContentDisplay: React.FC<ContentDisplayProps> = ({ content, isLoading, onWordClick, disabled }) => {
   if (isLoading) {
     return <StreamingContent content={content} />;
   }
   
   if (content) {
-    return <InteractiveContent content={content} onWordClick={onWordClick} />;
+    return <InteractiveContent content={content} onWordClick={onWordClick} disabled={disabled} />;
   }
 
   return null;

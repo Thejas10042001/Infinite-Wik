@@ -42,9 +42,13 @@ button {
   text-decoration: none;
   transition: color 0.2s ease-in-out;
 }
-.interactive-word:hover {
+.interactive-word:hover:not(:disabled) {
   color: #A020F0;
   text-decoration: underline;
+}
+.interactive-word:disabled {
+  color: #888888;
+  cursor: default;
 }
 .footer-text {
   font-size: 0.9em;

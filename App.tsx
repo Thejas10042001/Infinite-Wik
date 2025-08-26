@@ -27,6 +27,45 @@ const PREDEFINED_WORDS = [
 ];
 const UNIQUE_WORDS = [...new Set(PREDEFINED_WORDS)];
 
+const DEMO_MODE_CONTENT = {
+  topic: 'Hypertext',
+  art: {
+    art: `  /\\_/\\
+ ( o.o )
+  > ^ <`,
+  },
+  content: `Hypertext is text displayed on a computer display or other electronic devices with references (**hyperlinks**) to other text that the reader can immediately access.
+
+• **Interactive:** Unlike traditional linear text, hypertext allows readers to choose their own path through the information.
+• **Connections:** It creates a non-linear web of information, where concepts are linked together in an associative way.
+• **The Web:** The World Wide Web is the largest and most well-known implementation of hypertext.`
+};
+
+
+/**
+ * A banner displayed when the API key is missing, guiding the user to fix it.
+ */
+const ApiKeyBanner: React.FC = () => (
+  <div style={{
+    border: '1px solid #444',
+    padding: '1rem',
+    margin: '2rem 0',
+    backgroundColor: '#1a1a1a'
+  }}>
+    <h3 style={{ marginTop: 0, color: '#ffcc00' }}>Configuration Needed</h3>
+    <p>The <strong>API_KEY</strong> for the Gemini API is missing. The app is running in demo mode.</p>
+    <p>To fix this, add it as an environment variable in your hosting provider's settings (e.g., Vercel, Netlify). Create a variable named <strong>API_KEY</strong> and paste your key into the value field.</p>
+    <a
+      href="https://aistudio.google.com/app/apikey"
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ color: '#4D90FE', textDecoration: 'underline' }}
+    >
+      Get a Gemini API Key from Google AI Studio
+    </a>
+  </div>
+);
+
 
 /**
  * Creates a simple ASCII art bounding box as a fallback.
@@ -51,6 +90,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [asciiArt, setAsciiArt] = useState<AsciiArtData | null>(null);
   const [generationTime, setGenerationTime] = useState<number | null>(null);
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
 
 
   useEffect(() => {
@@ -76,9 +116,9 @@ const App: React.FC = () => {
           }
         })
         .catch(err => {
+          if (err.message === 'API_KEY_MISSING') return; // Handled by streamDefinition
           if (!isCancelled) {
             console.error("Failed to generate ASCII art:", err);
-            // Generate a simple fallback ASCII art box on failure
             const fallbackArt = createFallbackArt(currentTopic);
             setAsciiArt(fallbackArt);
           }
@@ -88,10 +128,6 @@ const App: React.FC = () => {
       try {
         for await (const chunk of streamDefinition(currentTopic)) {
           if (isCancelled) break;
-          
-          if (chunk.startsWith('Error:')) {
-            throw new Error(chunk);
-          }
           accumulatedContent += chunk;
           if (!isCancelled) {
             setContent(accumulatedContent);
@@ -100,9 +136,16 @@ const App: React.FC = () => {
       } catch (e: unknown) {
         if (!isCancelled) {
           const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred';
-          setError(errorMessage);
-          setContent(''); // Ensure content is clear on error
-          console.error(e);
+          if (errorMessage === 'API_KEY_MISSING') {
+            setIsDemoMode(true);
+            setCurrentTopic(DEMO_MODE_CONTENT.topic);
+            setContent(DEMO_MODE_CONTENT.content);
+            setAsciiArt(DEMO_MODE_CONTENT.art);
+          } else {
+            setError(errorMessage);
+            setContent(''); // Ensure content is clear on error
+            console.error(e);
+          }
         }
       } finally {
         if (!isCancelled) {
@@ -156,8 +199,10 @@ const App: React.FC = () => {
 
   return (
     <div>
-      <SearchBar onSearch={handleSearch} onRandom={handleRandom} disabled={isLoading} />
+      <SearchBar onSearch={handleSearch} onRandom={handleRandom} disabled={isLoading || isDemoMode} />
       
+      {isDemoMode && <ApiKeyBanner />}
+
       <header style={{ textAlign: 'center', marginBottom: '2rem' }}>
         <h1 className="rainbow-text" style={{ letterSpacing: '0.2em', textTransform: 'uppercase' }}>
           INFINITE WIKI
@@ -188,7 +233,8 @@ const App: React.FC = () => {
              <ContentDisplay 
                content={content} 
                isLoading={isLoading} 
-               onWordClick={handleWordClick} 
+               onWordClick={handleWordClick}
+               disabled={isDemoMode}
              />
           )}
 
