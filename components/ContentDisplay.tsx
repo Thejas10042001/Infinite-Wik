@@ -2,13 +2,73 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import React from 'react';
+import React, { useState, useRef, useCallback } from 'react';
+import { getShortDefinition } from '../services/geminiService';
 
 interface ContentDisplayProps {
   content: string;
   isLoading: boolean;
   onWordClick: (word: string) => void;
 }
+
+/**
+ * A component that wraps a keyword, fetching and displaying a definition tooltip on hover.
+ */
+const KeywordWithTooltip: React.FC<{
+  keyword: string;
+  onWordClick: (word: string) => void;
+}> = ({ keyword, onWordClick }) => {
+  const [definition, setDefinition] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+  const hoverTimeoutRef = useRef<number | null>(null);
+  // Removes only leading/trailing punctuation, preserving it within words (e.g., "Node.js", "word's").
+  const cleanWord = keyword.replace(/^[.,!?;:()"']+|[.,!?;:()"']+$/g, '');
+
+  const fetchDefinition = useCallback(async () => {
+    if (!definition && cleanWord) {
+      setIsLoading(true);
+      const shortDef = await getShortDefinition(cleanWord);
+      setDefinition(shortDef);
+      setIsLoading(false);
+    }
+  }, [definition, cleanWord]);
+
+  const handleMouseEnter = () => {
+    setIsTooltipVisible(true);
+    if (!definition && !isLoading) {
+      // Debounce the API call to avoid fetching on brief mouse-overs
+      hoverTimeoutRef.current = window.setTimeout(fetchDefinition, 300);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsTooltipVisible(false);
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+  };
+  
+  if (!cleanWord) return <span>{keyword}</span>;
+
+  return (
+    <span className="tooltip-container" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+      <button
+        onClick={() => onWordClick(cleanWord)}
+        className="interactive-word keyword"
+        aria-label={`Learn more about ${cleanWord}`}
+        aria-describedby={isTooltipVisible ? `tooltip-${cleanWord}` : undefined}
+      >
+        {keyword}
+      </button>
+      {isTooltipVisible && (
+        <span id={`tooltip-${cleanWord}`} className="tooltip-content" role="tooltip">
+          {isLoading ? 'Loading...' : definition}
+        </span>
+      )}
+    </span>
+  );
+};
 
 /**
  * A helper function that parses a string and renders its words as clickable buttons,
@@ -27,19 +87,12 @@ const renderClickableText = (
     // If the part is a keyword...
     if (part.startsWith('**') && part.endsWith('**')) {
       const keyword = part.substring(2, part.length - 2);
-      const cleanWord = keyword.replace(/[.,!?;:()"']/g, '');
-      if (!cleanWord) return <span key={key}>{keyword}</span>;
-
       return (
-        <button
-          key={key}
-          onClick={() => onWordClick(cleanWord)}
-          className="interactive-word"
-          style={{ color: '#6F4E37', fontWeight: 'bold' }} // Coffee color and bold
-          aria-label={`Learn more about ${cleanWord}`}
-        >
-          {keyword}
-        </button>
+        <KeywordWithTooltip 
+          key={key} 
+          keyword={keyword} 
+          onWordClick={onWordClick} 
+        />
       );
     } else {
       // Otherwise, it's a normal text part; make its words clickable
@@ -47,7 +100,8 @@ const renderClickableText = (
       return words.map((word, wordIndex) => {
         const wordKey = `${key}-word-${wordIndex}`;
         if (/\S/.test(word)) {
-          const cleanWord = word.replace(/[.,!?;:()"']/g, '');
+          // Removes only leading/trailing punctuation, preserving it within words.
+          const cleanWord = word.replace(/^[.,!?;:()"']+|[.,!?;:()"']+$/g, '');
           if (cleanWord) {
             return (
               <button
@@ -119,7 +173,7 @@ const StreamingContent: React.FC<{ content: string }> = ({ content }) => {
       {parts.map((part, index) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           return (
-            <span key={index} style={{ color: '#6F4E37', fontWeight: 'bold' }}>
+            <span key={index} className="keyword">
               {part.substring(2, part.length - 2)}
             </span>
           );
