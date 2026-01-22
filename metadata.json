@@ -1,6 +1,8 @@
 {
   "name": "Infinite Wiki",
-  "description": "Explore an infinite wiki where every word is a hyperlink to descriptions generated in real-time.",
-  "requestFramePermissions": [],
-  "prompt": ""
+  "description": "An endlessly branching AI-generated encyclopedia. Dive into any word to explore a real-time generated universe of knowledge and visual art.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": "Create an immersive, interactive wiki experience where every concept is a gateway to another."
 }

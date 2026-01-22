@@ -89,11 +89,11 @@ export async function getShortDefinition(topic: string): Promise<string> {
         contents: prompt,
         config: {
           thinkingConfig: { thinkingBudget: 0 },
-          maxOutputTokens: 60,
+          maxOutputTokens: 100,
         },
     });
 
-    return response.text.trim();
+    return response.text?.trim() || 'No definition found.';
   } catch (error) {
     console.error(`Could not generate short definition for "${topic}":`, error);
     return 'Knowledge unavailable for this term.';
@@ -127,7 +127,7 @@ export async function generateAsciiArt(topic: string): Promise<AsciiArtData> {
       },
     });
 
-    const jsonStr = response.text.trim();
+    const jsonStr = response.text?.trim() || '{}';
     const parsedData = JSON.parse(jsonStr);
 
     if (!parsedData.art) {
@@ -151,7 +151,6 @@ export async function generateImage(topic: string): Promise<string | null> {
   try {
     const prompt = `A high-quality, artistic photograph or digital art representing: "${topic}". The image should be visually compelling and symbolic.`;
 
-    // Note: generateContent is used for nano banana series models like gemini-2.5-flash-image
     const response = await ai.models.generateContent({
       model: imageModelName,
       contents: {
