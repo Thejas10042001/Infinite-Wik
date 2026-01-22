@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
 
 // Basic check for API key to prevent app crash and provide a clear error.
 if (!process.env.API_KEY) {
@@ -23,6 +23,40 @@ export interface AsciiArtData {
 }
 
 /**
+ * Helper to implement exponential backoff for API calls.
+ * This helps mitigate 429 (Too Many Requests) errors by automatically retrying.
+ */
+async function callWithRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 2000
+): Promise<T> {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      const errorMessage = error?.message || '';
+      const isRateLimit = errorMessage.includes('429') || errorMessage.toLowerCase().includes('too many requests') || errorMessage.toLowerCase().includes('quota');
+      const isOverloaded = errorMessage.includes('503') || errorMessage.toLowerCase().includes('overloaded');
+
+      // Only retry on rate limits or server overloads
+      if ((isRateLimit || isOverloaded) && attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt); // 2s, 4s, 8s...
+        console.warn(`API Rate limit hit. Retrying in ${delay}ms... (Attempt ${attempt + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      throw error;
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Creates a user-friendly error message from a generic error object.
  */
 const getApiErrorMessage = (error: unknown, context: string): string => {
@@ -36,14 +70,14 @@ const getApiErrorMessage = (error: unknown, context: string): string => {
   if (message.includes('API key not valid')) {
     return `Configuration issue detected. Please check your environment settings.`;
   }
-  if (message.includes('429')) {
-    return 'The engine is cooling down. Please wait a moment before searching again.';
+  if (message.includes('429') || message.toLowerCase().includes('quota')) {
+    return 'The neural network is extremely busy right now. Please wait a minute and try again.';
   }
   if (message.toUpperCase().includes('SAFETY')) {
     return `The content for "${context}" was restricted by safety filters.`;
   }
   if (message.includes('500') || message.includes('503')) {
-    return 'The neural network is temporarily unavailable. Please try again shortly.';
+    return 'The engine is momentarily overloaded. Try again in a few seconds.';
   }
 
   return `Could not generate knowledge for "${context}". Check your connection.`;
@@ -58,13 +92,14 @@ export async function* streamDefinition(
   try {
     const prompt = `For the term "${topic}", provide a detailed, encyclopedia-style explanation. Identify and highlight the most important **key words** in your response by wrapping them in double asterisks, like **this**. Start with a concise, single-paragraph overview. After this overview, provide a list of key aspects as bullet points. Each bullet point should start with the '•' character, followed by a space. Do not use any other markdown, titles, or special formatting. The response should be plain text with only the specified formatting.`;
 
-    const responseStream = await ai.models.generateContentStream({
+    // Explicitly typed the generic to AsyncGenerator<GenerateContentResponse> to fix the iterator error.
+    const responseStream = await callWithRetry<AsyncGenerator<GenerateContentResponse>>(() => ai.models.generateContentStream({
       model: textModelName,
       contents: prompt,
       config: {
-        thinkingConfig: { thinkingBudget: 0 }, // Minimize latency for streaming
+        thinkingConfig: { thinkingBudget: 0 },
       },
-    });
+    }));
 
     for await (const chunk of responseStream) {
       if (chunk && chunk.text) {
@@ -84,14 +119,15 @@ export async function getShortDefinition(topic: string): Promise<string> {
   try {
     const prompt = `Provide a very concise, single-sentence definition for the term: "${topic}". The definition should be short enough to fit in a tooltip.`;
 
-    const response = await ai.models.generateContent({
+    // Explicitly typed the generic to GenerateContentResponse to fix property access errors on 'unknown'.
+    const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
         model: textModelName,
         contents: prompt,
         config: {
           thinkingConfig: { thinkingBudget: 0 },
           maxOutputTokens: 100,
         },
-    });
+    }));
 
     return response.text?.trim() || 'No definition found.';
   } catch (error) {
@@ -129,7 +165,8 @@ export async function generateAsciiArt(topic: string, style: string = "Standard"
 
     const prompt = `Create a ${style} ASCII art representation for the concept: "${topic}". ${styleInstructions}`;
 
-    const response = await ai.models.generateContent({
+    // Explicitly typed the generic to GenerateContentResponse to fix property access errors on 'unknown'.
+    const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: textModelName,
       contents: prompt,
       config: {
@@ -137,7 +174,7 @@ export async function generateAsciiArt(topic: string, style: string = "Standard"
         responseSchema: artSchema,
         thinkingConfig: { thinkingBudget: 0 },
       },
-    });
+    }));
 
     const jsonStr = response.text?.trim() || '{}';
     const parsedData = JSON.parse(jsonStr);
@@ -157,13 +194,13 @@ export async function generateAsciiArt(topic: string, style: string = "Standard"
 
 /**
  * Generates an image for a given topic from the Gemini API.
- * Uses the nano-banana series model (gemini-2.5-flash-image) via generateContent.
  */
 export async function generateImage(topic: string, aspectRatio: string = "16:9", style: string = "Cinematic"): Promise<string | null> {
   try {
     const prompt = `A high-quality, ${style} representation of: "${topic}". The image should be visually compelling, thematic, and atmospheric.`;
 
-    const response = await ai.models.generateContent({
+    // Explicitly typed the generic to GenerateContentResponse to fix property access errors on 'unknown'.
+    const response = await callWithRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: imageModelName,
       contents: {
         parts: [{ text: prompt }]
@@ -173,14 +210,13 @@ export async function generateImage(topic: string, aspectRatio: string = "16:9",
           aspectRatio: aspectRatio as any
         }
       },
-    });
+    }));
 
-    // Find the image part in the response candidates
     const candidate = response.candidates?.[0];
     if (candidate?.content?.parts) {
       for (const part of candidate.content.parts) {
         if (part.inlineData) {
-          return part.inlineData.data; // Return base64 string
+          return part.inlineData.data;
         }
       }
     }
