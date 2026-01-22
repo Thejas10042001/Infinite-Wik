@@ -133,10 +133,14 @@ button {
   flex-grow: 1;
 }
 
+.search-wrapper {
+  position: relative;
+  flex-grow: 1;
+}
+
 .search-form {
   display: flex;
   align-items: center;
-  flex-grow: 1;
   border-bottom: 1px solid var(--color-border);
   transition: border-color 0.3s ease;
   padding-right: 0.5rem;
@@ -171,6 +175,32 @@ button {
 .mic-button:hover:not(:disabled) {
   color: var(--color-primary-accent);
   opacity: 1;
+}
+
+.suggestions-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: var(--color-background-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 10px 25px var(--color-shadow);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.suggestion-item {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.95rem;
+}
+
+.suggestion-item:hover, .suggestion-item.active {
+  background-color: var(--color-background-tertiary);
+  color: var(--color-primary-accent);
 }
 
 .random-button {

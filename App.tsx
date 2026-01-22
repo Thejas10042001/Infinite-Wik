@@ -276,7 +276,7 @@ const App: React.FC = () => {
           </h1>
           <ThemeToggle theme={theme} onToggle={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')} />
         </div>
-        <SearchBar onSearch={handleSearch} onRandom={handleRandom} disabled={isLoading} />
+        <SearchBar onSearch={handleSearch} onRandom={handleRandom} disabled={isLoading} suggestions={UNIQUE_WORDS} />
         
         <div className="settings-trigger-container">
           <button 
