@@ -148,13 +148,22 @@ const App: React.FC = () => {
       setDownloadButtonText('Download PDF');
       const startTime = performance.now();
 
-      generateAsciiArt(currentTopic, asciiStyle)
-        .then(art => { if (!isCancelled) setAsciiArt(art); })
-        .catch(() => { if (!isCancelled) setAsciiArt(createFallbackArt(currentTopic)); });
-      
-      generateImage(currentTopic, aspectRatio, imageStyle)
-        .then(base64Image => { if (!isCancelled) setImageUrl(base64Image); })
-        .finally(() => { if (!isCancelled) setIsImageLoading(false); });
+      // Slightly stagger the secondary requests to avoid simultaneous 429 triggers
+      setTimeout(() => {
+        if (!isCancelled) {
+          generateAsciiArt(currentTopic, asciiStyle)
+            .then(art => { if (!isCancelled) setAsciiArt(art); })
+            .catch(() => { if (!isCancelled) setAsciiArt(createFallbackArt(currentTopic)); });
+        }
+      }, 300);
+
+      setTimeout(() => {
+        if (!isCancelled) {
+          generateImage(currentTopic, aspectRatio, imageStyle)
+            .then(base64Image => { if (!isCancelled) setImageUrl(base64Image); })
+            .finally(() => { if (!isCancelled) setIsImageLoading(false); });
+        }
+      }, 800);
 
       let accumulatedContent = '';
       try {
