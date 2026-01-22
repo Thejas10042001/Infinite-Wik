@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { streamDefinition, generateAsciiArt, AsciiArtData, generateImage } from './services/geminiService';
 import ContentDisplay from './components/ContentDisplay';
 import SearchBar from './components/SearchBar';
@@ -25,6 +25,10 @@ const PREDEFINED_WORDS = [
   'Existential', 'Nihilism', 'Solipsism', 'Phenomenology', 'Hermeneutics', 'Deconstruction', 'Postmodern', 'Absurdism', 'Catharsis', 'Epiphany', 'Melancholy', 'Nostalgia', 'Longing', 'Reverie', 'Pathos', 'Ethos', 'Logos', 'Mythos', 'Anamnesis', 'Intertextuality', 'Metafiction', 'Stream', 'Lacuna', 'Caesura', 'Enjambment'
 ];
 const UNIQUE_WORDS = [...new Set(PREDEFINED_WORDS)];
+
+const ASPECT_RATIOS = ["1:1", "4:3", "3:4", "16:9", "9:16"];
+const IMAGE_STYLES = ["Realistic", "Cinematic", "Abstract", "Cyberpunk", "Sketch", "Minimalist"];
+const ASCII_STYLES = ["Standard", "Minimalist", "Detailed", "Cyberpunk"];
 
 const createFallbackArt = (topic: string): AsciiArtData => {
   const displayableTopic = topic.length > 20 ? topic.substring(0, 17) + '...' : topic;
@@ -73,6 +77,12 @@ const App: React.FC = () => {
   const [shareButtonText, setShareButtonText] = useState<string>('Share');
   const [downloadButtonText, setDownloadButtonText] = useState('Download PDF');
   const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme());
+  
+  // Generation Settings
+  const [aspectRatio, setAspectRatio] = useState<string>("16:9");
+  const [imageStyle, setImageStyle] = useState<string>("Cinematic");
+  const [asciiStyle, setAsciiStyle] = useState<string>("Standard");
+  const [showSettings, setShowSettings] = useState<boolean>(false);
 
   const downloadableContentRef = useRef<HTMLDivElement>(null);
 
@@ -98,7 +108,6 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!currentTopic) return;
     
-    // Update URL without reloading - Wrapped in try-catch to handle sandboxed environment restrictions
     try {
       const relativeUrl = `?topic=${encodeURIComponent(currentTopic)}`;
       if (window.history && window.history.pushState && window.location.search !== relativeUrl) {
@@ -108,7 +117,6 @@ const App: React.FC = () => {
       console.warn('History API pushState failed:', e);
     }
 
-    // Update Browser Tab Title
     document.title = `${currentTopic.charAt(0).toUpperCase() + currentTopic.slice(1)} - Infinite Wiki`;
 
     const updateHistory = (topic: string) => {
@@ -140,12 +148,11 @@ const App: React.FC = () => {
       setDownloadButtonText('Download PDF');
       const startTime = performance.now();
 
-      // Parallelize non-streaming requests
-      generateAsciiArt(currentTopic)
+      generateAsciiArt(currentTopic, asciiStyle)
         .then(art => { if (!isCancelled) setAsciiArt(art); })
         .catch(() => { if (!isCancelled) setAsciiArt(createFallbackArt(currentTopic)); });
       
-      generateImage(currentTopic)
+      generateImage(currentTopic, aspectRatio, imageStyle)
         .then(base64Image => { if (!isCancelled) setImageUrl(base64Image); })
         .finally(() => { if (!isCancelled) setIsImageLoading(false); });
 
@@ -171,7 +178,7 @@ const App: React.FC = () => {
     fetchContentAndArt();
     
     return () => { isCancelled = true; };
-  }, [currentTopic]);
+  }, [currentTopic, aspectRatio, imageStyle, asciiStyle]);
 
   const handleWordClick = useCallback((word: string) => {
     const newTopic = word.trim();
@@ -211,7 +218,6 @@ const App: React.FC = () => {
     }
   }, [content]);
 
-  // Fix: Completed handleShare implementation and added handleDownload logic
   const handleShare = useCallback(async () => {
     const shareUrl = window.location.href;
     if (navigator.share) {
@@ -271,6 +277,63 @@ const App: React.FC = () => {
           <ThemeToggle theme={theme} onToggle={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')} />
         </div>
         <SearchBar onSearch={handleSearch} onRandom={handleRandom} disabled={isLoading} />
+        
+        <div className="settings-trigger-container">
+          <button 
+            className={`settings-trigger ${showSettings ? 'active' : ''}`} 
+            onClick={() => setShowSettings(!showSettings)}
+          >
+            {showSettings ? 'Hide Options' : 'Visual Options'}
+          </button>
+        </div>
+
+        {showSettings && (
+          <div className="image-settings-panel">
+            <div className="settings-group">
+              <label>Image Aspect Ratio</label>
+              <div className="settings-options">
+                {ASPECT_RATIOS.map(ratio => (
+                  <button 
+                    key={ratio} 
+                    className={`option-btn ${aspectRatio === ratio ? 'selected' : ''}`}
+                    onClick={() => setAspectRatio(ratio)}
+                  >
+                    {ratio}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="settings-group">
+              <label>Image Visual Style</label>
+              <div className="settings-options">
+                {IMAGE_STYLES.map(style => (
+                  <button 
+                    key={style} 
+                    className={`option-btn ${imageStyle === style ? 'selected' : ''}`}
+                    onClick={() => setImageStyle(style)}
+                  >
+                    {style}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="settings-group">
+              <label>ASCII Art Style</label>
+              <div className="settings-options">
+                {ASCII_STYLES.map(style => (
+                  <button 
+                    key={style} 
+                    className={`option-btn ${asciiStyle === style ? 'selected' : ''}`}
+                    onClick={() => setAsciiStyle(style)}
+                  >
+                    {style}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <HistoryDisplay history={searchHistory} onHistoryClick={handleHistoryClick} disabled={isLoading} />
       </header>
 
@@ -295,7 +358,7 @@ const App: React.FC = () => {
           </div>
           <div className="content-right">
             <AsciiArtDisplay artData={asciiArt} topic={currentTopic} />
-            <ImageDisplay imageUrl={imageUrl} isLoading={isImageLoading} topic={currentTopic} />
+            <ImageDisplay imageUrl={imageUrl} isLoading={isImageLoading} topic={currentTopic} aspectRatio={aspectRatio} />
           </div>
         </div>
       </main>
