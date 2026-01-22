@@ -1,3 +1,4 @@
+
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -11,10 +12,10 @@ if (!process.env.API_KEY) {
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-const textModelName = 'gemini-2.5-flash';
-const artModelName = 'gemini-2.5-flash';
-const imageModelName = 'imagen-4.0-generate-001';
-
+// Gemini 3 Flash is the recommended model for basic text and high-speed tasks.
+const textModelName = 'gemini-3-flash-preview';
+// Gemini 2.5 Flash Image is the default model for image generation tasks.
+const imageModelName = 'gemini-2.5-flash-image';
 
 export interface AsciiArtData {
   art: string;
@@ -23,9 +24,6 @@ export interface AsciiArtData {
 
 /**
  * Creates a user-friendly error message from a generic error object.
- * @param error The error object caught.
- * @param context The topic or context in which the error occurred.
- * @returns A user-friendly error string.
  */
 const getApiErrorMessage = (error: unknown, context: string): string => {
   let message = 'An unknown error occurred.';
@@ -35,32 +33,24 @@ const getApiErrorMessage = (error: unknown, context: string): string => {
     message = error;
   }
 
-  // Check for common API error patterns to provide better user feedback.
   if (message.includes('API key not valid')) {
-    return `There is an issue with the application's configuration. Please contact support.`;
+    return `Configuration issue detected. Please check your environment settings.`;
   }
-  if (message.includes('429')) { // Too Many Requests
-    return 'The service is currently busy. Please try again in a few moments.';
+  if (message.includes('429')) {
+    return 'The engine is cooling down. Please wait a moment before searching again.';
   }
-  if (message.toUpperCase().includes('SAFETY')) { // Content blocked by safety settings
-    return `The response for "${context}" was blocked due to safety filters. Please try a different topic.`;
+  if (message.toUpperCase().includes('SAFETY')) {
+    return `The content for "${context}" was restricted by safety filters.`;
   }
-  if (message.includes('400 Bad Request')) {
-    return `The request was invalid. Please try rephrasing your search.`;
-  }
-  if (message.includes('500') || message.includes('503')) { // Server errors
-    return 'The service is temporarily unavailable. Please try again later.';
+  if (message.includes('500') || message.includes('503')) {
+    return 'The neural network is temporarily unavailable. Please try again shortly.';
   }
 
-  // Default error for failed generation
-  return `Could not generate content for "${context}". Please check your internet connection and try again.`;
+  return `Could not generate knowledge for "${context}". Check your connection.`;
 };
-
 
 /**
  * Streams a definition for a given topic from the Gemini API.
- * @param topic The word or term to define.
- * @returns An async generator that yields text chunks of the definition.
  */
 export async function* streamDefinition(
   topic: string,
@@ -72,7 +62,7 @@ export async function* streamDefinition(
       model: textModelName,
       contents: prompt,
       config: {
-        thinkingConfig: { thinkingBudget: 0 },
+        thinkingConfig: { thinkingBudget: 0 }, // Minimize latency for streaming
       },
     });
 
@@ -89,8 +79,6 @@ export async function* streamDefinition(
 
 /**
  * Generates a concise, one-sentence definition for a given topic.
- * @param topic The word or term to define.
- * @returns A promise that resolves to the definition string.
  */
 export async function getShortDefinition(topic: string): Promise<string> {
   try {
@@ -101,23 +89,19 @@ export async function getShortDefinition(topic: string): Promise<string> {
         contents: prompt,
         config: {
           thinkingConfig: { thinkingBudget: 0 },
-          maxOutputTokens: 50, // Keep it short
+          maxOutputTokens: 60,
         },
     });
 
     return response.text.trim();
   } catch (error) {
     console.error(`Could not generate short definition for "${topic}":`, error);
-    // Return a generic error message instead of throwing, so the UI doesn't break.
-    return 'Could not load definition.';
+    return 'Knowledge unavailable for this term.';
   }
 }
 
-
 /**
  * Generates ASCII art for a given topic from the Gemini API.
- * @param topic The topic to generate art for.
- * @returns A promise that resolves to an object with art.
  */
 export async function generateAsciiArt(topic: string): Promise<AsciiArtData> {
   try {
@@ -126,7 +110,7 @@ export async function generateAsciiArt(topic: string): Promise<AsciiArtData> {
       properties: {
         art: {
           type: Type.STRING,
-          description: `A clear, simple, and recognizable ASCII art representation of the concept "${topic}". The art should be easy for a person to understand and visually connect to the topic. For example, for "tree", draw a simple tree. For "ocean", draw waves. The art must be a single string with \\n for newlines.`
+          description: `A clear, simple, and recognizable ASCII art representation of "${topic}". Use only standard characters. Use \\n for newlines.`
         }
       },
       required: ['art']
@@ -134,7 +118,7 @@ export async function generateAsciiArt(topic: string): Promise<AsciiArtData> {
     const prompt = `Create a simple and recognizable ASCII art representation for the concept: "${topic}".`;
 
     const response = await ai.models.generateContent({
-      model: artModelName,
+      model: textModelName,
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -146,46 +130,52 @@ export async function generateAsciiArt(topic: string): Promise<AsciiArtData> {
     const jsonStr = response.text.trim();
     const parsedData = JSON.parse(jsonStr);
 
-    if (typeof parsedData.art !== 'string' || parsedData.art.trim().length === 0) {
-      throw new Error('Invalid or empty ASCII art in response from server');
+    if (!parsedData.art) {
+      throw new Error('Empty art response');
     }
 
     return {
       art: parsedData.art,
     };
   } catch (error) {
-    console.error(`Could not generate ASCII art for "${topic}":`, error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    throw new Error(`Could not generate ASCII art. ${errorMessage}`);
+    console.error(`ASCII Generation failed:`, error);
+    throw new Error(`Visual translation failed.`);
   }
 }
 
 /**
  * Generates an image for a given topic from the Gemini API.
- * @param topic The topic to generate an image for.
- * @returns A promise that resolves to the base64 encoded image string, or null on failure.
+ * Uses the nano-banana series model (gemini-2.5-flash-image) via generateContent.
  */
 export async function generateImage(topic: string): Promise<string | null> {
   try {
-    const prompt = `A high-quality, artistic photograph representing the concept of: "${topic}". The image should be visually compelling and symbolic of the topic.`;
+    const prompt = `A high-quality, artistic photograph or digital art representing: "${topic}". The image should be visually compelling and symbolic.`;
 
-    const response = await ai.models.generateImages({
+    // Note: generateContent is used for nano banana series models like gemini-2.5-flash-image
+    const response = await ai.models.generateContent({
       model: imageModelName,
-      prompt: prompt,
+      contents: {
+        parts: [{ text: prompt }]
+      },
       config: {
-        numberOfImages: 1,
-        outputMimeType: 'image/png',
-        aspectRatio: '16:9',
+        imageConfig: {
+          aspectRatio: "16:9"
+        }
       },
     });
 
-    if (response.generatedImages && response.generatedImages.length > 0) {
-      return response.generatedImages[0].image.imageBytes;
+    // Find the image part in the response candidates
+    const candidate = response.candidates?.[0];
+    if (candidate?.content?.parts) {
+      for (const part of candidate.content.parts) {
+        if (part.inlineData) {
+          return part.inlineData.data; // Return base64 string
+        }
+      }
     }
     return null;
   } catch (error) {
-    console.error(`Could not generate image for "${topic}":`, error);
-    // Return null instead of throwing to prevent crashing the entire content load.
+    console.error(`Image generation error:`, error);
     return null;
   }
 }
